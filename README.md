@@ -2,7 +2,7 @@
 
 **See what's hiding in your files — and remove it, safely.**
 
-![litmus — a local web app that reveals and removes hidden content from your files](assets/screenshot.png)
+![litmus — a local web app that reveals and removes hidden content from your files](https://raw.githubusercontent.com/LastDev-coder/litmus/main/assets/screenshot.png)
 
 litmus is a private, fully local tool that reveals invisible characters, hidden
 file information and content credentials in your documents, code and images —
