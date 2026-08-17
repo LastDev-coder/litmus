@@ -20,7 +20,8 @@ Works with text, source code, PNG, JPEG and SVG files.
 ```bash
 git clone https://github.com/LastDev-coder/litmus
 cd litmus
-./start.sh          # Windows: ./start.ps1
+./start.sh          # macOS / Linux
+./start.ps1         # Windows (PowerShell)
 ```
 
 That's the whole setup — it prepares everything and opens the app in your
