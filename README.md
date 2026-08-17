@@ -66,16 +66,6 @@ file only when it can verify the program still behaves the same. If it can't
 verify, it refuses and tells you why.
 
 
-## What litmus won't claim
-
-Honesty is the point of this tool, so two limits are stated up front:
-
-- litmus finds *hidden content* — it does **not** detect statistical AI
-  watermarks in plain text (no public tool can), and it never labels a file
-  "AI-generated" or "human-written".
-- Finding nothing is not proof there is nothing. litmus reports only what it
-  can actually verify.
-
 ## Privacy
 
 Everything runs on your machine. No accounts, no uploads, no telemetry, no

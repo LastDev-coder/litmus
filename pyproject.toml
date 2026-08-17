@@ -1,6 +1,6 @@
 [project]
 name = "litmus"
-version = "0.2.0"
+version = "0.3.0"
 description = "AI provenance inspector and quality-preserving transformation system"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -55,8 +55,9 @@ mypy_path = "src"
 packages = ["litmus"]
 
 [[tool.mypy.overrides]]
-# Optional dependency with no type stubs.
-module = ["tree_sitter_language_pack.*", "tree_sitter.*"]
+# Optional dependencies with no type stubs. Listed here so the type check is
+# clean whether or not the extra happens to be installed.
+module = ["tree_sitter_language_pack.*", "tree_sitter.*", "c2pa.*"]
 ignore_missing_imports = true
 
 [tool.ruff]
@@ -71,4 +72,4 @@ select = ["E", "F", "I", "UP", "B", "SIM"]
 "src/litmus/cli.py" = ["B008"]
 # This module embeds the web UI's HTML/CSS/JS template as a string literal;
 # wrapping those lines to 100 columns would harm the markup's readability.
-"src/litmus/server.py" = ["E501"]
+"src/litmus/web_ui.py" = ["E501"]

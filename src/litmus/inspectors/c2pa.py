@@ -16,6 +16,7 @@ is, and even then it attests to the signer's claim, not to authorship.
 
 from __future__ import annotations
 
+import contextlib
 from typing import Any
 
 from ..artifact import Artifact
@@ -33,9 +34,17 @@ JUMBF_MAGIC = b"jumb"
 C2PA_MARKERS = (b"c2pa", b"jumbf", b"urn:uuid:")
 
 
+def _guess_mime(data: bytes) -> str | None:
+    if data.startswith(PNG_SIGNATURE):
+        return "image/png"
+    if data.startswith(JPEG_SIGNATURE):
+        return "image/jpeg"
+    return None
+
+
 def _load_c2pa_module() -> Any | None:
     try:
-        import c2pa  # type: ignore[import-not-found]
+        import c2pa
     except ImportError:
         return None
     return c2pa
@@ -111,27 +120,40 @@ class C2paInspector:
         return False, "unknown", ""
 
     def _verify(self, module: Any, artifact: Artifact) -> dict[str, object]:
-        """Verify with the optional c2pa library.
+        """Verify with the optional c2pa library, reading from bytes in memory.
 
-        Any failure is reported as a verification outcome, never raised: a
-        broken or untrusted manifest is a result, not a crash.
+        Reading from a stream (rather than a file path) means verification works
+        the same way for the in-memory web UI and the CLI. Any library error is
+        reported as a verification outcome, never raised: a broken or untrusted
+        manifest is a result, not a crash.
         """
-        path = artifact.ref.path
-        if path is None:
+        import io
+
+        media = artifact.ref.media_type or _guess_mime(artifact.data)
+        if media is None:
             return {
                 "verification": "not_performed",
-                "verification_reason": "verification requires a file path",
+                "verification_reason": "could not determine the media type to verify",
             }
+        reader = None
         try:
-            reader = module.Reader.from_file(path)
+            reader = module.Reader(media, io.BytesIO(artifact.data))
             manifest_json = reader.json()
+            validity: str | None = None
+            if hasattr(reader, "is_valid"):
+                validity = "valid" if reader.is_valid() else "invalid"
+            return {
+                "verification": "performed",
+                "verification_reason": None,
+                "validity": validity,
+                "manifest": manifest_json,
+            }
         except Exception as exc:  # noqa: BLE001 - any library error is a result
             return {
                 "verification": "failed",
                 "verification_reason": f"{type(exc).__name__}: {exc}",
             }
-        return {
-            "verification": "performed",
-            "verification_reason": None,
-            "manifest": manifest_json,
-        }
+        finally:
+            if reader is not None:
+                with contextlib.suppress(Exception):
+                    reader.close()

@@ -21,6 +21,7 @@ from .model import (
     TransformationReport,
     ValidationReport,
 )
+from .office import is_ooxml, ooxml_kind, strip_office_metadata
 from .providers import undetectable_signals
 from .transform import STRUCTURAL_CODE_OPS, Transform, resolve_operations
 from .transform.file_strip import (
@@ -33,6 +34,7 @@ from .transform.file_strip import (
 from .validate import DEFAULT_MIN_LEXICAL_SIMILARITY, validate_text
 from .validate.binary import validate_image_strip
 from .validate.code import validate_code
+from .validate.office import validate_office_strip
 from .validate.structural import validate_python_import_removal
 
 log = logging.getLogger("litmus")
@@ -154,6 +156,8 @@ def transform(
     """
     media = artifact.ref.media_type
     if artifact.ref.kind is ArtifactKind.BINARY:
+        if is_ooxml(artifact.data):
+            return _transform_office(artifact)
         return _transform_image(artifact)
     if media == "image/svg+xml" and artifact.text is not None:
         return _transform_svg(artifact)
@@ -206,6 +210,33 @@ def _transform_image(
     tr.accepted = vr.all_passed is True
     if not tr.accepted:
         tr.rejected_reason = "image validation failed: " + "; ".join(
+            c.name for c in vr.checks if c.passed is False
+        )
+    return _finish(tr, vr, new_data, data)
+
+
+def _transform_office(
+    artifact: Artifact,
+) -> tuple[TransformationReport, ValidationReport, bytes]:
+    tr = TransformationReport()
+    data = artifact.data
+    new_data, removed = strip_office_metadata(data)
+    kind = ooxml_kind(data)
+    tr.performed = True
+    tr.operations.append(
+        OperationResult(
+            operation="strip_office_metadata",
+            description=f"Remove author/company/custom metadata from the {kind} document",
+            semantics_preserving=True,
+            applied=new_data != data,
+            changes=len(data) - len(new_data),
+            details={"removed_parts": removed, "container": kind},
+        )
+    )
+    vr = validate_office_strip(data, new_data)
+    tr.accepted = vr.all_passed is True
+    if not tr.accepted:
+        tr.rejected_reason = "office validation failed: " + "; ".join(
             c.name for c in vr.checks if c.passed is False
         )
     return _finish(tr, vr, new_data, data)

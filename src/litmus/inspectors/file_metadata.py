@@ -13,6 +13,7 @@ from __future__ import annotations
 import struct
 
 from ..artifact import Artifact
+from ..exif import parse_exif_from_app1
 from ..model import EvidenceClass, EvidenceLabel, Finding, Severity
 from .base import InspectorOutcome
 
@@ -155,20 +156,40 @@ class FileMetadataInspector:
         if not segments:
             return []
         found: dict[str, int] = {}
+        exif: dict[str, object] = {}
         for marker, payload in segments:
             name = JPEG_APP_NAMES.get(marker, f"APP{marker - 0xE0}" if marker >= 0xE0 else "other")
             if payload.startswith(b"http://ns.adobe.com/xap/1.0/"):
                 name = "APP1 (XMP)"
             elif payload.startswith(b"Exif\x00\x00"):
                 name = "APP1 (Exif)"
+                exif = exif or parse_exif_from_app1(payload)
             found[name] = found.get(name, 0) + 1
-        return [
+
+        findings: list[Finding] = [
             self._finding(
                 "jpeg_metadata",
                 f"JPEG carries {sum(found.values())} metadata segment(s)",
                 {"container": "jpeg", "segments": found},
             )
         ]
+        has_gps = "gps_latitude" in exif and "gps_longitude" in exif
+        if exif:
+            summary = "Photo embeds GPS location" if has_gps else "Photo embeds camera/EXIF details"
+            findings.append(
+                Finding(
+                    detector=self.name,
+                    category="photo_location" if has_gps else "photo_exif",
+                    evidence_class=EvidenceClass.EMBEDDED_METADATA,
+                    # Location is the sharp privacy risk; flag it loudly.
+                    severity=Severity.WARNING if has_gps else Severity.NOTICE,
+                    summary=summary,
+                    label=EvidenceLabel.CONFIRMED,
+                    details=exif,
+                    removable_by=["strip_image_metadata"],
+                )
+            )
+        return findings
 
     def _svg(self, text: str) -> list[Finding]:
         markers = {

@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import io
 import struct
+import zipfile
 import zlib
 
 import pytest
@@ -44,6 +46,97 @@ def build_jpeg(*, xmp: bool = False, jumbf: bool = False) -> bytes:
     out.append(b"\xff\xda\x00\x08\x01\x01\x00\x00\x3f\x00")
     out.append(b"\xff\xd9")
     return b"".join(out)
+
+
+def _exif_app1_with_gps(make: str = "Canon") -> bytes:
+    """A big-endian TIFF EXIF payload with a camera make and GPS coordinates."""
+    be = ">"
+    ifd0_offset = 8
+    ifd0_size = 2 + 2 * 12 + 4  # count + 2 entries + next-offset
+    make_bytes = make.encode("ascii") + b"\x00"
+    make_offset = ifd0_offset + ifd0_size
+    gps_ifd_offset = make_offset + len(make_bytes)
+    gps_ifd_size = 2 + 4 * 12 + 4  # count + 4 entries + next-offset
+    lat_offset = gps_ifd_offset + gps_ifd_size
+    lon_offset = lat_offset + 24  # 3 rationals * 8 bytes
+
+    header = b"MM" + struct.pack(be + "HI", 0x002A, ifd0_offset)
+    ifd0 = struct.pack(be + "H", 2)
+    ifd0 += struct.pack(be + "HHII", 0x010F, 2, len(make_bytes), make_offset)  # Make
+    ifd0 += struct.pack(be + "HHII", 0x8825, 4, 1, gps_ifd_offset)  # GPS IFD pointer
+    ifd0 += struct.pack(be + "I", 0)  # no next IFD
+
+    gps = struct.pack(be + "H", 4)
+    gps += struct.pack(be + "HHI", 0x0001, 2, 2) + b"N\x00\x00\x00"  # lat ref (inline)
+    gps += struct.pack(be + "HHII", 0x0002, 5, 3, lat_offset)  # latitude
+    gps += struct.pack(be + "HHI", 0x0003, 2, 2) + b"W\x00\x00\x00"  # lon ref (inline)
+    gps += struct.pack(be + "HHII", 0x0004, 5, 3, lon_offset)  # longitude
+    gps += struct.pack(be + "I", 0)
+
+    lat = struct.pack(be + "IIIIII", 37, 1, 48, 1, 0, 1)  # 37°48'0" -> 37.8
+    lon = struct.pack(be + "IIIIII", 122, 1, 25, 1, 0, 1)  # 122°25'0" -> 122.4166..
+    tiff = header + ifd0 + make_bytes + gps + lat + lon
+    return b"Exif\x00\x00" + tiff
+
+
+def build_jpeg_with_gps(make: str = "Canon") -> bytes:
+    """A minimal JPEG whose APP1 segment carries EXIF with a GPS location."""
+    payload = _exif_app1_with_gps(make)
+    seg = b"\xff\xe1" + struct.pack(">H", len(payload) + 2) + payload
+    return b"\xff\xd8" + seg + b"\xff\xda\x00\x08\x01\x01\x00\x00\x3f\x00" + b"\xff\xd9"
+
+
+def build_docx(
+    *, author: str = "Jane Doe", company: str = "Acme Corp", custom: bool = True
+) -> bytes:
+    """Build a minimal but genuine DOCX (ZIP of OOXML parts) with metadata."""
+    ns = "http://schemas.openxmlformats.org"
+    rels_ct = "application/vnd.openxmlformats-package.relationships+xml"
+    doc_ct = "application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"
+    content_types = (
+        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+        f'<Types xmlns="{ns}/package/2006/content-types">'
+        '<Default Extension="xml" ContentType="application/xml"/>'
+        f'<Default Extension="rels" ContentType="{rels_ct}"/>'
+        f'<Override PartName="/word/document.xml" ContentType="{doc_ct}"/>'
+        "</Types>"
+    )
+    document = (
+        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+        '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">'
+        "<w:body><w:p><w:r><w:t>Hello world.</w:t></w:r></w:p></w:body></w:document>"
+    )
+    core = (
+        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+        '<cp:coreProperties xmlns:cp="http://schemas.openxmlformats.org/package/2006/metadata/core-properties"'
+        ' xmlns:dc="http://purl.org/dc/elements/1.1/">'
+        f"<dc:creator>{author}</dc:creator>"
+        f"<cp:lastModifiedBy>{author}</cp:lastModifiedBy>"
+        "<cp:revision>7</cp:revision>"
+        "</cp:coreProperties>"
+    )
+    app = (
+        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+        '<Properties xmlns="http://schemas.openxmlformats.org/officeDocument/2006/extended-properties">'
+        f"<Company>{company}</Company><Application>Microsoft Word</Application>"
+        "</Properties>"
+    )
+    custom_xml = (
+        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+        '<Properties xmlns="http://schemas.openxmlformats.org/officeDocument/2006/custom-properties"'
+        ' xmlns:vt="http://schemas.openxmlformats.org/officeDocument/2006/docPropsVTypes">'
+        '<property fmtid="{D5CDD505-2E9C-101B-9397-08002B2CF9AE}" pid="2" name="ClientCode">'
+        "<vt:lpwstr>SECRET-42</vt:lpwstr></property></Properties>"
+    )
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+        zf.writestr("[Content_Types].xml", content_types)
+        zf.writestr("word/document.xml", document)
+        zf.writestr("docProps/core.xml", core)
+        zf.writestr("docProps/app.xml", app)
+        if custom:
+            zf.writestr("docProps/custom.xml", custom_xml)
+    return buf.getvalue()
 
 
 @pytest.fixture
