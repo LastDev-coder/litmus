@@ -1,0 +1,47 @@
+name: "litmus scan"
+description: "Scan files for hidden Unicode characters and AI provenance signals; fail CI on findings."
+branding:
+  icon: "eye"
+  color: "blue"
+
+inputs:
+  paths:
+    description: "Files or directories to scan (space-separated)."
+    required: false
+    default: "."
+  fail-on:
+    description: "Severity that fails the job: info | notice | warning | never."
+    required: false
+    default: "warning"
+  extra-args:
+    description: "Additional arguments passed to `provenance inspect` (e.g. --json)."
+    required: false
+    default: ""
+  version:
+    description: "Git ref of provenance to install. Defaults to the ref this action was called at."
+    required: false
+    default: ""
+
+runs:
+  using: "composite"
+  steps:
+    - uses: actions/setup-python@v5
+      with:
+        python-version: "3.12"
+    - name: Install litmus
+      shell: bash
+      run: |
+        set -euo pipefail
+        repo="${{ github.action_repository }}"
+        ref="${{ inputs.version }}"
+        ref="${ref:-${{ github.action_ref }}}"
+        if [ -n "$repo" ]; then
+          # Used as `uses: <owner>/litmus@<ref>` from another repo.
+          pip install "litmus @ git+https://github.com/${repo}.git@${ref}"
+        else
+          # Dogfooded in-repo via `uses: ./`.
+          pip install -e .
+        fi
+    - name: Scan
+      shell: bash
+      run: litmus inspect ${{ inputs.paths }} --fail-on ${{ inputs.fail-on }} ${{ inputs.extra-args }}

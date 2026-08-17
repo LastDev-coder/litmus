@@ -1,0 +1,17 @@
+# Lets other projects use this repo as a pre-commit hook source.
+# In their .pre-commit-config.yaml:
+#
+#   repos:
+#     - repo: https://github.com/LastDev-coder/litmus
+#       rev: v0.2.0
+#       hooks:
+#         - id: litmus-inspect
+#
+# Then `pre-commit run` fails a commit that introduces hidden characters.
+- id: litmus-inspect
+  name: litmus hidden-character scan
+  description: Fail on hidden Unicode and provenance signals in changed files.
+  entry: litmus inspect
+  args: ["--fail-on", "warning"]
+  language: python
+  types: [text]
