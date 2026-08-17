@@ -1,5 +1,5 @@
 [project]
-name = "litmus"
+name = "litmus-cli"
 version = "0.3.0"
 description = "AI provenance inspector and quality-preserving transformation system"
 readme = "README.md"
@@ -34,6 +34,11 @@ dev = [
     "tree-sitter-language-pack>=0.9",
 ]
 
+[project.urls]
+Homepage = "https://github.com/LastDev-coder/litmus"
+Repository = "https://github.com/LastDev-coder/litmus"
+Issues = "https://github.com/LastDev-coder/litmus/issues"
+
 [project.scripts]
 litmus = "litmus.cli:main"
 
@@ -43,6 +48,12 @@ build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/litmus"]
+
+[tool.hatch.build.targets.sdist]
+# Explicit allowlist: local working files (CLAUDE.md, docs/, CHANGELOG.md, ...)
+# exist in this tree but are not part of the published project. Hatchling does
+# not honor .git/info/exclude, so only these paths ship in the sdist.
+only-include = ["src/litmus", "tests", "README.md", "LICENSE", "SECURITY.md"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

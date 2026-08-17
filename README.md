@@ -15,9 +15,31 @@ your original untouched.
 - **Trust** — nothing is saved unless the result is verified safe
 - **Private** — 100% offline; your files never leave your machine
 
-Works with text, source code, PNG, JPEG and SVG files.
+Works with text, source code, PNG, JPEG, SVG and Office files
+(docx / xlsx / pptx).
 
-## Get started in one minute
+## Install
+
+With [uv](https://docs.astral.sh/uv/) — works even if your system Python is
+old or `pip` is missing (the default on macOS):
+
+```bash
+uv tool install litmus-cli
+litmus serve        # opens the web app in your browser
+```
+
+Or with pip, if you already have Python 3.11+:
+
+```bash
+pip install litmus-cli          # or: python3 -m pip install litmus-cli
+```
+
+Either way the package installs the `litmus` command; see
+[Command line](#command-line) below for terminal usage. If `litmus` isn't
+found after a uv install, run `uv tool update-shell` once and open a new
+terminal.
+
+### Or run from source
 
 ```bash
 git clone https://github.com/LastDev-coder/litmus
@@ -27,9 +49,8 @@ cd litmus
 ```
 
 That's the whole setup — it prepares everything and opens the app in your
-browser. Drop a file in, choose **Check** or **Clean**, and download the clean
-result. Requires Python 3.11+ (or [uv](https://docs.astral.sh/uv/), which
-fetches Python for you).
+browser — no Python setup needed if you have
+[uv](https://docs.astral.sh/uv/), which fetches everything for you.
 
 ## Using the app
 
@@ -65,6 +86,15 @@ For source-code files, litmus is deliberately strict: it saves a cleaned code
 file only when it can verify the program still behaves the same. If it can't
 verify, it refuses and tells you why.
 
+## What litmus won't claim
+
+Honesty is the point of this tool, so two limits are stated up front:
+
+- litmus finds *hidden content* — it does **not** detect statistical AI
+  watermarks in plain text (no public tool can), and it never labels a file
+  "AI-generated" or "human-written".
+- Finding nothing is not proof there is nothing. litmus reports only what it
+  can actually verify.
 
 ## Privacy
 
