@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import base64
 import contextlib
+import errno
 import json
 import logging
 import webbrowser
@@ -126,6 +127,32 @@ class _Handler(BaseHTTPRequestHandler):
         self._send_json(200, result)
 
 
+#: How many consecutive ports to try before giving up, starting at the one
+#: requested. Keeps auto-selection bounded and deterministic.
+_PORT_PROBE_LIMIT = 20
+
+
+def _bind_free_port(host: str, port: int) -> tuple[ThreadingHTTPServer, int]:
+    """Bind to ``port``, or the next free port after it, and return the server.
+
+    A busy port is a normal situation (another copy is already running, or an
+    unrelated service holds it), so litmus steps to the next free port instead
+    of crashing. Raises ``SystemExit`` with a friendly message if a whole band
+    of ports is occupied.
+    """
+    for candidate in range(port, port + _PORT_PROBE_LIMIT):
+        try:
+            return ThreadingHTTPServer((host, candidate), _Handler), candidate
+        except OSError as exc:
+            if exc.errno == errno.EADDRINUSE:
+                continue  # try the next port
+            raise SystemExit(f"litmus :: could not start the web UI: {exc}") from exc
+    raise SystemExit(
+        f"litmus :: ports {port}-{port + _PORT_PROBE_LIMIT - 1} are all in use. "
+        f"Free one up, or choose another with --port."
+    )
+
+
 def serve(host: str = "127.0.0.1", port: int = 8765, *, open_browser: bool = True) -> None:
     """Start the local server. Blocks until interrupted."""
     if host not in ("127.0.0.1", "localhost", "::1"):
@@ -134,7 +161,7 @@ def serve(host: str = "127.0.0.1", port: int = 8765, *, open_browser: bool = Tru
             "locally but has no authentication",
             host,
         )
-    httpd = ThreadingHTTPServer((host, port), _Handler)
+    httpd, port = _bind_free_port(host, port)
     url = f"http://{host}:{port}/"
     print(f"litmus web UI at {url}  (Ctrl-C to stop; nothing is uploaded off this machine)")
     if open_browser:

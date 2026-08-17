@@ -7,7 +7,7 @@ import urllib.request
 from http.server import ThreadingHTTPServer
 
 from conftest import build_png
-from litmus.server import _Handler, build_result
+from litmus.server import _bind_free_port, _Handler, build_result
 
 # --- pure core logic (no sockets) ------------------------------------------
 
@@ -102,3 +102,29 @@ def test_bad_json_is_a_400() -> None:
         httpd.shutdown()
         httpd.server_close()
         thread.join(timeout=5)
+
+
+def test_bind_free_port_steps_past_a_busy_port() -> None:
+    """When the requested port is taken, the server picks the next free one."""
+    blocker = ThreadingHTTPServer(("127.0.0.1", 0), _Handler)
+    busy = blocker.server_address[1]
+    try:
+        httpd, chosen = _bind_free_port("127.0.0.1", busy)
+        try:
+            assert chosen != busy  # stepped past the occupied port
+            assert busy < chosen < busy + 20
+        finally:
+            httpd.server_close()
+    finally:
+        blocker.server_close()
+
+
+def test_bind_free_port_uses_the_requested_port_when_free() -> None:
+    probe = ThreadingHTTPServer(("127.0.0.1", 0), _Handler)
+    free = probe.server_address[1]
+    probe.server_close()  # release it so the requested port is available
+    httpd, chosen = _bind_free_port("127.0.0.1", free)
+    try:
+        assert chosen == free
+    finally:
+        httpd.server_close()
