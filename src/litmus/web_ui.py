@@ -345,7 +345,7 @@ html{scrollbar-color:var(--line-2) transparent}
         <circle cx="12" cy="12" r="3.2"/>
       </svg>
       <span class="big">Drop files or <u>browse</u></span>
-      <span class="hint">text &middot; code &middot; png &middot; jpeg &middot; svg &middot; docx / xlsx / pptx &middot; select several at once</span>
+      <span class="hint">text &middot; code &middot; png &middot; jpeg &middot; svg &middot; pdf &middot; docx / xlsx / pptx &middot; select several at once</span>
       <input id="file" type="file" multiple hidden>
     </div>
     <textarea id="paste" class="hidden" placeholder="Paste text here — litmus will reveal and remove any hidden characters, without changing a single word you can see."></textarea>
@@ -493,7 +493,9 @@ const CATS={
   png_metadata:{t:"Hidden image info",icon:"tag",b:"Extra information embedded in the image — software names, dates, descriptions — that isn't part of the picture itself."},
   jpeg_metadata:{t:"Hidden image info",icon:"tag",b:"Extra information embedded in the image — software names, dates, descriptions — that isn't part of the picture itself."},
   svg_metadata:{t:"Hidden image info",icon:"tag",b:"Extra information embedded in the graphic that isn't part of what it draws."},
-  file_metadata:{t:"Hidden file info",icon:"tag",b:"Extra information embedded in the file that isn't part of its visible content."}
+  file_metadata:{t:"Hidden file info",icon:"tag",b:"Extra information embedded in the file that isn't part of its visible content."},
+  pdf_info_dictionary:{t:"Hidden document info",icon:"tag",b:"Author, creation tool and dates embedded in the PDF — details that travel with the file when you share it."},
+  pdf_xmp_metadata:{t:"Hidden document info (XMP)",icon:"tag",b:"An embedded record of the software that made this PDF and when. It isn't part of what the pages show."}
 };
 const SEV={warning:"Worth removing",notice:"Unusual",info:"Good to know"};
 const KINDS={text:"Text",source_code:"Code",binary:"Image / binary"};

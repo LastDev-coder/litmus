@@ -15,7 +15,7 @@ your original untouched.
 - **Trust** — nothing is saved unless the result is verified safe
 - **Private** — 100% offline; your files never leave your machine
 
-Works with text, source code, PNG, JPEG, SVG and Office files
+Works with text, source code, PNG, JPEG, SVG, PDF and Office files
 (docx / xlsx / pptx).
 
 ## Install

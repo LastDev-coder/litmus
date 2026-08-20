@@ -21,6 +21,7 @@ from typing import Any
 
 from ..artifact import Artifact
 from ..model import EvidenceClass, EvidenceLabel, Finding, Severity
+from ..pdf import is_pdf
 from .base import InspectorOutcome
 from .file_metadata import (
     JPEG_SIGNATURE,
@@ -39,6 +40,8 @@ def _guess_mime(data: bytes) -> str | None:
         return "image/png"
     if data.startswith(JPEG_SIGNATURE):
         return "image/jpeg"
+    if is_pdf(data):
+        return "application/pdf"
     return None
 
 
@@ -58,6 +61,7 @@ class C2paInspector:
         return (
             data.startswith(PNG_SIGNATURE)
             or data.startswith(JPEG_SIGNATURE)
+            or is_pdf(data)
             or artifact.ref.media_type == "image/svg+xml"
         )
 
@@ -112,6 +116,12 @@ class C2paInspector:
                 if marker == 0xEB and JUMBF_MAGIC in payload[:64]:
                     return True, "jpeg", "APP11 JUMBF segment"
             return False, "jpeg", ""
+        if is_pdf(data):
+            # C2PA embeds its manifest in a PDF as an associated file whose
+            # AFRelationship name is C2PA_Manifest (C2PA spec, PDF embedding).
+            if b"/C2PA_Manifest" in data:
+                return True, "pdf", "associated file with /C2PA_Manifest relationship"
+            return False, "pdf", ""
         if artifact.text is not None and artifact.ref.media_type == "image/svg+xml":
             lowered = artifact.text.lower()
             if "c2pa" in lowered:

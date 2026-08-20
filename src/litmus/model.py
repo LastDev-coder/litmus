@@ -18,7 +18,7 @@ from enum import StrEnum
 from pydantic import BaseModel, Field
 
 REPORT_SCHEMA_VERSION = "1.0"
-TOOL_VERSION = "0.3.0"
+TOOL_VERSION = "0.4.0"
 
 
 class ArtifactKind(StrEnum):

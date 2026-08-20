@@ -22,6 +22,7 @@ from .model import (
     ValidationReport,
 )
 from .office import is_ooxml, ooxml_kind, strip_office_metadata
+from .pdf import is_encrypted, is_pdf, metadata_spans, strip_pdf_metadata
 from .providers import undetectable_signals
 from .transform import STRUCTURAL_CODE_OPS, Transform, resolve_operations
 from .transform.file_strip import (
@@ -35,6 +36,7 @@ from .validate import DEFAULT_MIN_LEXICAL_SIMILARITY, validate_text
 from .validate.binary import validate_image_strip
 from .validate.code import validate_code
 from .validate.office import validate_office_strip
+from .validate.pdf import validate_pdf_strip
 from .validate.structural import validate_python_import_removal
 
 log = logging.getLogger("litmus")
@@ -155,6 +157,10 @@ def transform(
     accepted, so an unaccepted transformation can never be written by accident.
     """
     media = artifact.ref.media_type
+    # PDFs are routed by signature before any text handling: a pure-ASCII PDF
+    # decodes as text, and text normalization would corrupt its byte offsets.
+    if is_pdf(artifact.data):
+        return _transform_pdf(artifact)
     if artifact.ref.kind is ArtifactKind.BINARY:
         if is_ooxml(artifact.data):
             return _transform_office(artifact)
@@ -237,6 +243,53 @@ def _transform_office(
     tr.accepted = vr.all_passed is True
     if not tr.accepted:
         tr.rejected_reason = "office validation failed: " + "; ".join(
+            c.name for c in vr.checks if c.passed is False
+        )
+    return _finish(tr, vr, new_data, data)
+
+
+def _transform_pdf(
+    artifact: Artifact,
+) -> tuple[TransformationReport, ValidationReport, bytes]:
+    tr = TransformationReport()
+    data = artifact.data
+    if is_encrypted(data):
+        tr.rejected_reason = (
+            "encrypted PDF: its strings cannot be safely rewritten, so nothing was changed"
+        )
+        return tr, ValidationReport(), data
+
+    new_data, removed = strip_pdf_metadata(data)
+    # Only bytes inside metadata spans can differ; counting there keeps this
+    # O(metadata) instead of O(file).
+    changed_bytes = sum(
+        sum(1 for a, b in zip(data[s:e], new_data[s:e], strict=True) if a != b)
+        for s, e in metadata_spans(data)
+    )
+    tr.performed = True
+    tr.operations.append(
+        OperationResult(
+            operation="strip_pdf_metadata",
+            description=(
+                "Blank the information-dictionary values and XMP packets in place, "
+                "preserving every byte offset"
+            ),
+            semantics_preserving=True,
+            applied=new_data != data,
+            changes=changed_bytes,
+            details={
+                "removed": removed,
+                "note": (
+                    "values are blanked in place rather than deleted, so the file "
+                    "size and structure are exactly preserved"
+                ),
+            },
+        )
+    )
+    vr = validate_pdf_strip(data, new_data)
+    tr.accepted = vr.all_passed is True
+    if not tr.accepted:
+        tr.rejected_reason = "pdf validation failed: " + "; ".join(
             c.name for c in vr.checks if c.passed is False
         )
     return _finish(tr, vr, new_data, data)

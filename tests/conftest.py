@@ -139,6 +139,65 @@ def build_docx(
     return buf.getvalue()
 
 
+def build_pdf(
+    *,
+    author: str = "Jane Doe",
+    producer: str = "Acme PDF 1.0",
+    xmp: bool = False,
+    encrypted: bool = False,
+    hex_author: bool = False,
+) -> bytes:
+    """Build a minimal but genuine PDF: catalog, page, content, Info, valid xref."""
+    xmp_body = (
+        '<?xpacket begin="\ufeff" id="W5M0MpCehiHzreSzNTczkc9d"?>'
+        '<x:xmpmeta xmlns:x="adobe:ns:meta/"><rdf:RDF '
+        'xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">'
+        '<rdf:Description xmlns:xmp="http://ns.adobe.com/xap/1.0/">'
+        "<xmp:CreatorTool>SneakyWriter 9000</xmp:CreatorTool>"
+        "</rdf:Description></rdf:RDF></x:xmpmeta>"
+        '<?xpacket end="w"?>'
+    ).encode("utf-8")
+
+    content = b"BT /F1 12 Tf 72 720 Td (Hello world) Tj ET"
+    if hex_author:
+        author_value = "<FEFF" + author.encode("utf-16-be").hex().upper() + ">"
+    else:
+        author_value = f"({author})"
+
+    objects: list[bytes] = [
+        b"<< /Type /Catalog /Pages 2 0 R" + (b" /Metadata 5 0 R" if xmp else b"") + b" >>",
+        b"<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+        b"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R >>",
+        b"<< /Length %d >>\nstream\n%s\nendstream" % (len(content), content),
+    ]
+    if xmp:
+        objects.append(
+            b"<< /Type /Metadata /Subtype /XML /Length %d >>\nstream\n%s\nendstream"
+            % (len(xmp_body), xmp_body)
+        )
+    info_num = len(objects) + 1
+    objects.append(
+        f"<< /Author {author_value} /Producer ({producer}) "
+        f"/CreationDate (D:20240101120000Z) >>".encode()
+    )
+
+    out = bytearray(b"%PDF-1.7\n%\xe2\xe3\xcf\xd3\n")
+    offsets: list[int] = []
+    for i, body in enumerate(objects, start=1):
+        offsets.append(len(out))
+        out += b"%d 0 obj\n%s\nendobj\n" % (i, body)
+    xref_at = len(out)
+    out += b"xref\n0 %d\n0000000000 65535 f \n" % (len(objects) + 1)
+    for off in offsets:
+        out += b"%010d 00000 n \n" % off
+    trailer = b"<< /Size %d /Root 1 0 R /Info %d 0 R" % (len(objects) + 1, info_num)
+    if encrypted:
+        trailer += b" /Encrypt 9 0 R"
+    trailer += b" >>"
+    out += b"trailer\n%s\nstartxref\n%d\n%%%%EOF\n" % (trailer, xref_at)
+    return bytes(out)
+
+
 @pytest.fixture
 def clean_text() -> str:
     return "# Title\n\nA plain paragraph of text.\n\n- one\n- two\n"

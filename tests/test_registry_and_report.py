@@ -70,7 +70,14 @@ def test_skipped_inspectors_are_recorded(clean_text: str) -> None:
     artifact = load_bytes(clean_text.encode(), path=Path("a.md"))
     report, _ = analyze(artifact)
     names = {status.name for status in report.inspection.inspectors}
-    assert names == {"unicode", "text_markers", "file_metadata", "office_metadata", "c2pa"}
+    assert names == {
+        "unicode",
+        "text_markers",
+        "file_metadata",
+        "office_metadata",
+        "pdf_metadata",
+        "c2pa",
+    }
     for status in report.inspection.inspectors:
         assert status.ran or status.reason
 
